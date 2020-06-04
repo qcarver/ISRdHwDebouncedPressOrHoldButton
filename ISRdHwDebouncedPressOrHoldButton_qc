@@ -1,0 +1,112 @@
+#include "Arduino.h"
+#include <avr/interrupt.h>
+#include "TimerOne.h"
+
+/*Written for my Arduino Uno which only can assign interrupts to 2 or 3
+ * Circuit:
+ * 5V to 
+ *  16k resistor to ground   
+ *  and BUTTON_IN
+ * BUTTON_IN to
+ *  THe 4.7 uF electrolytic+(anode)
+ *  680 resitor to ground
+ * BUTTON_OUT to
+ *  The 4.7 uF electrolytic-(cathode)
+ *  Pin 3
+ *  
+ *  Observed the debounce holds Pin 3 high for atleast .09 seconds
+ *  
+ *  Lessons learned:
+ *  1) Don't attach interrupts or use interupts in anything but global space
+ *  2) If a variable is used in both the ISR and elsewhere declare it volatile
+ *  2) Thou shalt not assign more than one interrupt to a pin (eg: RISING, FALLING)
+ *  3) When thoust doest use millis don'th thou forget to do math with unsigned long
+ */
+
+volatile unsigned long highTime, lowTime; //uSecs
+const int pin = 3;
+
+volatile enum ButtonState {READY, PRESSING, PRESSED, HELD} buttonState = READY;
+
+//if you hold for this long, then a button press becomes a button hold
+const int holdTime = 400; //uSecs
+
+/*Interrupt Service Routine...keep it simple*/
+void button() {
+  //reset the count..to be in this state we are low going high
+  if(buttonState == READY){
+    lowTime=millis()-1;
+  }
+
+  (digitalRead(pin)==HIGH)? highTime=millis(): lowTime=millis();
+
+  //remember interrupt only sees change, not steady state, this limits our cases
+  if (lowTime < highTime){
+    buttonState = PRESSING;
+  }
+  else{ //(lowTime > highTime)
+    if (lowTime - highTime > holdTime){
+      //If API hasn't already noticed make it official, otw reset.
+      buttonState = (buttonState == READY)?READY:HELD;
+    }
+    else buttonState = PRESSED;
+  }
+}
+
+void setup(){
+  // put your setup code here, to run once:
+  Serial.begin(9600);
+  Serial.print("*** ");Serial.print(__FILE__);Serial.print(" Build: ");
+  Serial.print(__DATE__); Serial.print(" "); Serial.print(__TIME__);
+  Serial.println(" ***");
+  pinMode(pin, INPUT);
+  attachInterrupt(digitalPinToInterrupt(pin), button, CHANGE);
+}
+
+bool isPressed(){
+  bool rv = (buttonState == PRESSED);
+  //once we have reported the button state reset it
+  if (rv == true) buttonState = READY;
+  return rv;
+}
+
+bool isHeld(){
+  //consider the button held if it has been held down too long
+  if (buttonState == PRESSING){
+    if ((millis() - highTime >= holdTime)&&(highTime > lowTime)){
+      buttonState = HELD;
+    }
+  }
+  //also consider if the ISR marked it as such
+  bool rv = (buttonState == HELD);
+  //once we have reported the button state reset it
+  if (rv == true) buttonState = READY;
+  return rv;
+}
+
+bool isPressing(){
+  //report, but stay in this state
+  return (buttonState == PRESSING);
+}
+
+void printDebug(){
+  Serial.print("Pin: "); Serial.print(pin);
+  Serial.print(" TimeHi: "); Serial.print(highTime);
+  Serial.print(" TimeLo: "); Serial.print(lowTime);
+  Serial.print(" Delta: ");
+  if (highTime > lowTime){
+    Serial.print(highTime - lowTime);
+  } else {
+    Serial.print("-");
+    Serial.print(lowTime - highTime);
+  }
+  Serial.print(" millis: "); Serial.print(millis());
+  Serial.print(" state: ");Serial.println(buttonState);
+}
+
+void loop() {
+  if (isHeld())Serial.println("pressed and held");
+  else if (isPressed())Serial.println("pressed");
+  //else if (isPressing())Serial.println("pressing");
+  //don't bother printing ready unless you are debugging, you'd see it alot
+}
