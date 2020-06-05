@@ -1,4 +1,4 @@
-# DebounceForStopButtonOnSonyRemote
+# Interrupt Service Routined and Hardware Debounce Button which register 'Press' and 'Hold' Button States
 
 A humble software developers attempt to write the perfect button.
 
