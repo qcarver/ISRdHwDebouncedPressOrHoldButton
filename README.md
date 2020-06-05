@@ -1,4 +1,4 @@
-# Software Interrupt Service Routined and Hardware Debounces Button which register 'Press' and 'Hold' Button States
+# Software Interrupt Service Routined and Hardware Debounced Button which register 'Press' and 'Hold' Button States
 
 A humble software developers attempt to write the perfect button.
 
